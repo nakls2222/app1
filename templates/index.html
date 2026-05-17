@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <!-- viewport для корректного отображения на мобильных устройствах -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Космический питомец 🚀</title>
+
+    <!-- Подключаем библиотеку Telegram Web App SDK -->
+    <!-- Она даёт доступ к нативным кнопкам, цветам темы и всплывающим окнам -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+    <style>
+        /* Делаем всё красиво и адаптивно */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+            /* Цвета фона и текста будут переопределены через JS */
+            background-color: #ffffff;
+            color: #000000;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .container {
+            text-align: center;
+            max-width: 400px;
+            width: 100%;
+        }
+
+        /* Большой смайлик питомца */
+        #pet {
+            font-size: 100px;
+            margin: 30px 0;
+            transition: transform 0.2s;
+            cursor: default;
+        }
+
+        /* Лёгкая анимация при нажатии (будет добавляться класс) */
+        .fed-animation {
+            transform: scale(1.2);
+        }
+
+        /* Блоки с характеристиками */
+        .stats {
+            width: 100%;
+            margin-bottom: 20px;
+        }
+
+        .stat {
+            margin: 15px 0;
+            text-align: left;
+        }
+
+        .stat label {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        /* Кастомный стиль для шкал прогресса */
+        progress {
+            width: 100%;
+            height: 25px;
+            border-radius: 12px;
+            overflow: hidden;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+
+        /* Закрашенная часть (WebKit) */
+        progress::-webkit-progress-bar {
+            background-color: #e0e0e0;
+            border-radius: 12px;
+        }
+
+        progress::-webkit-progress-value {
+            background-color: #4CAF50;
+            border-radius: 12px;
+            transition: width 0.3s;
+        }
+
+        /* Для Firefox */
+        progress::-moz-progress-bar {
+            background-color: #4CAF50;
+            border-radius: 12px;
+        }
+
+        /* Цвета шкал будут меняться динамически в зависимости от значений */
+        .hunger-bar::-webkit-progress-value {
+            background-color: #FF9800; /* оранжевый для сытости */
+        }
+
+        .mood-bar::-webkit-progress-value {
+            background-color: #2196F3; /* синий для настроения */
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Космический питомец</h1>
+        <!-- Смайлик питомца, будет меняться через JavaScript -->
+        <div id="pet">🐶</div>
+
+        <div class="stats">
+            <div class="stat">
+                <label>Сытость:</label>
+                <!-- progress bar с начальным значением 100, максимум 100 -->
+                <progress id="hunger" class="hunger-bar" value="100" max="100"></progress>
+            </div>
+            <div class="stat">
+                <label>Настроение:</label>
+                <progress id="mood" class="mood-bar" value="100" max="100"></progress>
+            </div>
+        </div>
+        <!-- Основная кнопка будет добавлена через Telegram MainButton -->
+        <!-- Обычная кнопка здесь не нужна, но можно оставить как индикатор -->
+        <p style="font-size: 14px; opacity: 0.7;">Нажми на кнопку внизу экрана, чтобы покормить питомца!</p>
+    </div>
+
+    <script>
+        // =============================================
+        // ОСНОВНОЙ СЦЕНАРИЙ МИНИ-ПРИЛОЖЕНИЯ
+        // =============================================
+
+        // Дожидаемся полной загрузки HTML-элементов
+        document.addEventListener('DOMContentLoaded', function() {
+            // ---------- 1. Инициализация Telegram Web App ----------
+            const tg = window.Telegram.WebApp; // Объект для взаимодействия с Telegram
+
+            // Сообщаем Telegram, что страница загрузилась и готова к показу
+            tg.ready();
+
+            // Расширяем приложение на весь экран (опционально)
+            tg.expand();
+
+            // ---------- 2. Применяем цветовую тему Telegram ----------
+            // Берём цвета из настроек пользователя (тёмная/светлая тема)
+            // Это делает приложение «родным» и удобным в любом режиме
+            const theme = tg.themeParams;
+            document.body.style.backgroundColor = theme.bg_color || '#ffffff';
+            document.body.style.color = theme.text_color || '#000000';
+
+            // ---------- 3. Состояние питомца (переменные) ----------
+            let hunger = 100;   // Сытость, от 0 до 100
+            let mood = 100;     // Настроение, от 0 до 100
+
+            // Получаем доступ к HTML-элементам
+            const petEmoji = document.getElementById('pet');
+            const hungerBar = document.getElementById('hunger');
+            const moodBar = document.getElementById('mood');
+
+            // ---------- 4. Функция обновления интерфейса ----------
+            function updateUI() {
+                // Обновляем значения шкал
+                hungerBar.value = hunger;
+                moodBar.value = mood;
+
+                // Меняем смайлик в зависимости от состояния
+                if (hunger > 70 && mood > 70) {
+                    petEmoji.textContent = '😄'; // счастливый
+                } else if (hunger < 30 || mood < 30) {
+                    petEmoji.textContent = '😢'; // грустный (голодный или несчастный)
+                } else {
+                    petEmoji.textContent = '😐'; // нейтральный
+                }
+            }
+
+            // ---------- 5. Главная кнопка Telegram (MainButton) ----------
+            // Устанавливаем текст кнопки, которая будет внизу экрана
+            tg.MainButton.text = 'Покормить 🥩';
+            // Делаем кнопку видимой (по умолчанию она скрыта)
+            tg.MainButton.show();
+
+            // Вешаем обработчик нажатия на главную кнопку
+            tg.MainButton.onClick(function() {
+                // Логика кормления
+                // Увеличиваем сытость, но не больше 100
+                hunger = Math.min(hunger + 25, 100);
+                // Кормление немного поднимает настроение
+                mood = Math.min(mood + 10, 100);
+
+                // Обновляем экран
+                updateUI();
+
+                // Добавляем класс анимации, который увеличит смайлик на секунду
+                petEmoji.classList.add('fed-animation');
+                setTimeout(() => {
+                    petEmoji.classList.remove('fed-animation');
+                }, 300);
+
+                // Показываем всплывающее уведомление в Telegram (только если не в браузере)
+                if (tg.isExpanded) {
+                    tg.showPopup({
+                        title: 'Ням-ням! 🍖',
+                        message: 'Питомец покормлен и радуется!',
+                        buttons: [{ type: 'ok' }]
+                    });
+                }
+            });
+
+            // ---------- 6. Симуляция жизнедеятельности ----------
+            // Каждые 3 секунды питомец теряет немного сытости и настроения
+            setInterval(function() {
+                // Уменьшаем сытость, но не даём упасть ниже нуля
+                hunger = Math.max(hunger - 3, 0);
+                // Настроение тоже немного снижается
+                mood = Math.max(mood - 2, 0);
+                // Обновляем экран
+                updateUI();
+
+                // Если сытость упала до 0 — показываем предупреждение
+                if (hunger === 0) {
+                    tg.showPopup({
+                        title: 'О нет! 😢',
+                        message: 'Питомец совсем голоден! Покорми его скорее!',
+                        buttons: [{ type: 'ok' }]
+                    });
+                }
+            }, 3000); // интервал 3000 миллисекунд = 3 секунды
+
+            // ---------- 7. Начальное отображение ----------
+            updateUI();
+
+            // Дополнительно: можно добавить обработку закрытия приложения
+            tg.onEvent('viewportChanged', () => {
+                // например, при изменении размера окна
+            });
+        });
+    </script>
+</body>
+</html>
